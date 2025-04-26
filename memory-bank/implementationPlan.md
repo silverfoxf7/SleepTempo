@@ -39,16 +39,16 @@ Use the check-boxes below; mark `[x]` as you finish each task.
 
 ## 🎚️ 3 — Tempo-Ladder Sequencer  
 - [x] Add `constants.ts` with default ladder (120⇢20 BPM as in PRD).  
-- [ ] Build `SequencerManager` to iterate ladder and call `audioEngine.start` per segment.  
-- [ ] Emit `onEnded` → UI auto-stops & powers down screen.  
+- [x] Build `SequencerManager` to iterate ladder and call `audioEngine.start` per segment.  
+- [x] Emit `onEnded` → UI auto-stops & powers down screen.  
 
 ---
 
 ## 🖥️ 4 — Minimal UI (Dark-Mode)  
-- [ ] `app/page.tsx`: full-viewport flex-center; circular Start/Stop button with Tailwind `bg-zinc-800/90`.  
-- [ ] When playing → replace button label with pulsing dot (CSS `animation-pulse`).  
-- [ ] State handled by `usePlayer` hook (`isPlaying`, `stepIndex`).  
-- [ ] Keyboard ⇢ Space-bar toggles playback (desktop convenience).  
+- [x] `app/page.tsx`: full-viewport flex-center; circular Start/Stop button with Tailwind `bg-zinc-800/90`.  
+- [x] When playing → replace button label with pulsing dot (CSS `animation-pulse`).  
+- [x] State handled by `usePlayer` hook (`isPlaying`, `stepIndex`).  
+- [x] Keyboard ⇢ Space-bar toggles playback (desktop convenience).  
 
 ---
 

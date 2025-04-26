@@ -53,7 +53,16 @@ const mockGlobalAudioContextInstance = {
       loop: false,
       playbackRate: { value: 1 },
     })),
-    createBuffer: vi.fn(() => ({})),
+    createBuffer: vi.fn((numberOfChannels, length, sampleRate) => ({
+        // Return a basic mock buffer with the required method
+        numberOfChannels,
+        length,
+        sampleRate,
+        getChannelData: vi.fn(() => new Float32Array(length)), // Return dummy data array
+        copyFromChannel: vi.fn(),
+        copyToChannel: vi.fn(),
+        duration: length / sampleRate,
+    })),
     destination: {},
     get currentTime() { return mockGlobalCurrentTime; },
     set currentTime(value) { mockGlobalCurrentTime = value; },
