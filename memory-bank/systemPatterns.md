@@ -1,0 +1,78 @@
+## 📐 System Pattern – Agent-Driven Test-First Workflow
+
+### Overview
+Follow a strict **Test-Driven Development (TDD)** cadence:
+
+| Phase | Agent Role                | Output                                      | Commit Tag |
+|-------|---------------------------|---------------------------------------------|------------|
+| 1     | **Spec-Writer** (Planner) | • High-level test plan<br>• Concrete test files (`*.test.ts`,`*.spec.ts`, Playwright E2E)<br>• Test data fixtures & mocks | `tests-only` |
+| 2     | **Impl-Writer** (Coder)   | • Minimally sufficient production code to turn entire suite green | `impl-passes-tests` |
+| 3     | **Refactorer** (Optional) | • Internal rewrites / DRY-ups **with no failing tests** | `refactor-no-apis-changed` |
+
+> ❗ The Spec-Writer **MUST NOT** add production code.<br>
+> ❗ The Impl-Writer **MUST NOT** modify test assertions (except to tighten them).<br>
+> ❗ Every push **must** keep `pnpm test` and `pnpm playwright test` fully green in CI.
+
+### Golden Rules
+
+1. **Red First** – Commit failing tests before any implementation.
+2. **Minimal Green** – Write the smallest amount of code necessary to pass.
+3. **Single Responsibility** – One feature = one failing test = one tiny commit.
+4. **Living Documentation** – Treat tests as the canonical spec; PRD discrepancies surface as failing tests.
+5. **No Blind Spots** – Code coverage goal ≥ 90 % lines & branches (use `vitest --coverage`).
+
+### Folder & Naming Conventions
+
+```
+src/
+└── lib/
+    └── audioEngine.ts
+tests/
+└── unit/
+    └── audioEngine.test.ts
+└── e2e/
+    └── basicFlow.spec.ts
+__fixtures__/
+```
+
+* Unit tests → `tests/unit/**.test.ts` (Vitest)  
+* E2E tests → `tests/e2e/**.spec.ts` (Playwright)  
+
+### Mandatory Test Categories for SleepTempo
+
+| Category        | Example Assertions |
+|-----------------|--------------------|
+| **Audio Engine** | • Schedules 100 clicks at 120 BPM within ±5 ms jitter<br>• `stop()` halts all future nodes |
+| **Sequencer**    | • Advances ladder steps in the correct order<br>• Fires `onEnded` exactly once |
+| **UI State**     | • Clicking Start toggles `isPlaying`<br>• Button label changes to Pulsing Dot while active |
+| **Settings**     | • Ladder edits persist to `localStorage`<br>• Voice count preference respected across reloads |
+| **PWA / SW**     | • Manifest served at `/manifest.json`<br>• Offline returns HTTP 200 for `/` and audio assets |
+| **Accessibility**| • Main button reachable via keyboard (Enter/Space)<br>• Axe audit returns no critical violations |
+| **Energy**       | • Simulated Chrome trace: CPU throttled < 5 % average (mock via lighthouse-ci) |
+
+### Test Utilities
+
+* Mock `AudioContext` with @`standardized-audio-context`.
+* Stub `navigator.wakeLock` and `navigator.vibrate` where unavailable.
+* Use Playwright’s mobile emulation (`device = "iPhone 13 Pro"`) for E2E.
+
+### CI Enforcement
+
+* CI job `test.yml` must run:
+  ```bash
+  pnpm install
+  pnpm lint
+  pnpm test --coverage
+  pnpm playwright install --with-deps
+  pnpm playwright test
+  ```
+* Merge blocked unless all checks succeed and coverage threshold met.
+
+### Commit Message Prefixes
+
+* `spec:` – Adds/updates tests only
+* `feat:` – Implements functionality, turns tests green
+* `refactor:` – Internal change, no API / test changes
+* `chore:` – Docs, tooling, config
+
+---

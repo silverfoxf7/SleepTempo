@@ -1,0 +1,44 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+**1\. Maintain Project Rules in `.cursor/rules`**  
+Keep all project-specific guidelines there, referencing them with `@file` when needed. This ensures rules are version-controlled and easily updated without cluttering global settings.
+
+**2\. Enforce Modularity**  
+Avoid a “giant file” approach. Separate key functionalities (e.g., puzzle logic, data fetching, UI states) into multiple files and React components to keep the codebase clean and maintainable.
+
+Use test-driven development.
+
+Never use placholders in response text for code. 
+
+ONLY do what I ask you to do; avoid extacurricular tasks.
+
+Resetting the database resets my account, always ask before doing that and only do it in rarely when its the only option.
+
+If new information conflicts with old information, check the documentation if available, and always favour new methods.
+
+Consult documentation before running any commands, particular with command line interfaces.
+
+If you learn anything interesting about the project that could be useful for the future, advise to add to .cursor/rules. 
+
+Resolve errors using best practices like a senior app developer/engineer. Propose concise fixes.
+
+Before suggesting anything, confirm: “This current suggestion has not been proposed before in our history conversation”. Read the ongoing conversation history, codebase, and online docs for the current request/error.
+
+Do not suggest answers that already exist in the code. This wastes time and resources.
+
+Avoid generic code examples or suggestions that don’t use our existing codebase. Avoid situations where you would offer suggestions such as “you may need to update”.
+
+Ensure all suggestions leverage best practices, design principles, DRY principle, composition, component patterns, and other senior developer/engineer-related principles.
+
+Provide concise fixes or suggestions after reading the history conversation, current file, codebase, indexed features documentation, and online docs if needed.
+
+Always write the full detailed code, logic, and adequate file path when answering, that include Python or TypeScript. Never ever propose a type of “any”.
+
+Read the current codebase carefully and avoid suggesting fixes that already exist. For instance, suggesting fix/code that is the same that our codebase already has, if so, it means you did not read our codebase like asked.
+
+Ensure all proposed fixes and suggestions are aligned with the current codebase stack and make sure to be proactive so it doesn’t break the app.
+
+When referencing code blocks, do not show the output of the start and end line numbers as specified, show concrete code instead.
