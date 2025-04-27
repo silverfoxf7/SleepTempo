@@ -21,6 +21,13 @@ export function usePlayer() {
   // Initialize engine and sequencer
   useEffect(() => {
     let isMounted = true;
+    const timeoutId = setTimeout(() => {
+      if (isMounted && !isEngineReady && engineRef.current) {
+        console.log('usePlayer: Safety timeout - forcing engine ready state');
+        setIsEngineReady(true);
+      }
+    }, 3000);
+
     getAudioEngine().then(resolvedEngineInstance => {
       if (isMounted && resolvedEngineInstance) {
         console.log('usePlayer: Audio engine instance obtained.');
@@ -37,12 +44,17 @@ export function usePlayer() {
         sequencerRef.current = new SequencerManager(resolvedEngineInstance, settings.ladder);
         sequencerRef.current.onSequenceEnd = handleSequenceEnd;
         setIsEngineReady(true);
+        
+        // Clear the safety timeout since we're now ready
+        clearTimeout(timeoutId);
       } else if (isMounted) {
           console.error("usePlayer: Failed to initialize audio engine.");
       }
     });
+    
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
       if (sequencerRef.current) {
           sequencerRef.current.stop();
           sequencerRef.current.onSequenceEnd = undefined;
@@ -50,7 +62,7 @@ export function usePlayer() {
     };
   // This effect correctly depends on when settings are loaded and the settings object identity
   // to perform the *initial* setup and sync.
-  }, [handleSequenceEnd, isSettingsLoaded, settings]); 
+  }, [handleSequenceEnd, isSettingsLoaded, settings, isEngineReady]); 
 
   // Effect to push subsequent setting changes to the engine AFTER initial load
   useEffect(() => {
@@ -75,12 +87,21 @@ export function usePlayer() {
         console.warn('usePlayer: Cannot toggle play, engine/sequencer not ready.')
         return;
     }
+    
     const sequencer = sequencerRef.current;
+    const engine = engineRef.current;
+    
     if (isPlaying) {
       sequencer.stop();
       setIsPlaying(false);
       console.log('usePlayer: Stopped sequence.');
     } else {
+      // Use the public method to resume audio context if needed
+      if (engine) {
+        console.log(`usePlayer: Audio context state before playing: ${engine.getAudioContextState()}`);
+        engine.resumeAudioContextIfNeeded();
+      }
+      
       sequencer.start(settings.ladder);
       setIsPlaying(true);
       console.log('usePlayer: Started sequence.');

@@ -4,10 +4,14 @@ import React, { useEffect, useState } from 'react';
 import { usePlayer } from '@/lib/usePlayer'; // Import the hook
 import SettingsDrawer from '@/components/SettingsDrawer'; // Import SettingsDrawer component
 
-// Placeholder Settings Icon SVG
-const SettingsIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-    <path fillRule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 5.855a.75.75 0 0 0 .357.84.75.75 0 0 1 .296.92l-.202.68a.75.75 0 0 0 .21.86l.56.56a.75.75 0 0 0 .86.21l.68-.202a.75.75 0 0 1 .92.296.75.75 0 0 0 .84.357l2.038-.175c.904-.078 1.567-.85 1.567-1.754V4.043a.75.75 0 0 0-.724-.75C13.66 3.28 12.39 2.25 11.078 2.25ZM12.75 4.5a.75.75 0 0 0-.75-.75H11.08c-.522 0-.99.31-1.2.77L8.94 6.11a2.25 2.25 0 0 1-.89 1.15l-.01.005-.01.006a2.25 2.25 0 0 0-1.15.89L5.29 8.94a1.496 1.496 0 0 0-.77 1.2v.942c0 .521.31.99.77 1.2l1.6.94a2.25 2.25 0 0 0 1.15.89l.005.01.006.01a2.25 2.25 0 0 1 .89 1.15l.94 1.603c.27.46.74.77 1.2.77h.942c.521 0 .99-.31 1.2-.77l.94-1.6a2.25 2.25 0 0 1 .89-1.15l.01-.005.01-.006a2.25 2.25 0 0 0 1.15-.89l1.6-.94c.46-.27.77-.74.77-1.2v-.942c0-.521-.31-.99-.77-1.2l-1.6-.94a2.25 2.25 0 0 0-1.15-.89l-.005-.01-.006-.01a2.25 2.25 0 0 1-.89-1.15l-.94-1.603a1.496 1.496 0 0 0-1.2-.77Zm-4.52 6.118a.75.75 0 0 0-.897.445l-.445.897a.75.75 0 0 1-1.342 0l-.445-.897a.75.75 0 0 0-.897-.445l-.897.445a.75.75 0 0 1 0 1.342l.897.445a.75.75 0 0 0 .445.897l.445.897a.75.75 0 0 1 0 1.342l-.445.897a.75.75 0 0 0-.445.897l-.897.445a.75.75 0 0 1-1.342 0l-.897-.445a.75.75 0 0 0-.897.445l-.445.897a.75.75 0 0 1-1.342 0l-.445-.897a.75.75 0 0 0-.897-.445L.94 15.198a.75.75 0 0 1 0-1.342l.445-.897a.75.75 0 0 0 .897-.445l.445-.897a.75.75 0 0 1 1.342 0l.445.897a.75.75 0 0 0 .897.445l.897-.445a.75.75 0 0 1 1.342 0l.897.445a.75.75 0 0 0 .445.897l.445.897a.75.75 0 0 1 0 1.342l-.445.897a.75.75 0 0 0-.445.897l-.897.445a.75.75 0 0 1-1.342 0L.94 17.27a.75.75 0 0 0-.897.445l-.445.897a.75.75 0 0 1-1.342 0l-.445-.897a.75.75 0 0 0-.897-.445l-.897.445a.75.75 0 0 1 0 1.342l.897.445a.75.75 0 0 0 .445.897l.445.897a.75.75 0 0 1 0 1.342l-.445.897a.75.75 0 0 0-.445.897l-.897.445a.75.75 0 0 1-1.342 0l-.897-.445a.75.75 0 0 0-.897.445L.103 21.8a.75.75 0 0 1-1.342 0l-.445-.897a.75.75 0 0 0-.897-.445l-.897.445a.75.75 0 0 1 0 1.342l.897.445a.75.75 0 0 0 .445.897l.445.897a.75.75 0 0 1 0 1.342l-.445.897a.75.75 0 0 0-.445.897l-.897.445a.75.75 0 0 1-1.342 0L0 21.77Z" clipRule="evenodd" />
+// Drawer handle icon
+const DrawerHandleIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 12" fill="currentColor" className="w-12 h-3">
+    <g strokeDasharray="4 2" stroke="currentColor" strokeWidth="2">
+      <line x1="2" y1="2" x2="22" y2="2" strokeLinecap="round" />
+      <line x1="2" y1="6" x2="22" y2="6" strokeLinecap="round" />
+      <line x1="2" y1="10" x2="22" y2="10" strokeLinecap="round" />
+    </g>
   </svg>
 );
 
@@ -38,17 +42,51 @@ export default function HomePage() {
     };
   }, [togglePlay, isEngineReady]); // Add isEngineReady dependency
 
+  // iOS/Safari audio context unlock - required for audio to work on iOS
+  useEffect(() => {
+    // Check if iOS or Safari
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    
+    if (isIOS || isSafari) {
+      console.log('DEBUG: iOS/Safari detected, setting up audio context unlock');
+      
+      // Create a silent audio buffer
+      const unlockAudio = () => {
+        const audioContext = new (window.AudioContext || (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)();
+        const buffer = audioContext.createBuffer(1, 1, 22050);
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContext.destination);
+        source.start(0);
+        source.onended = () => {
+          source.disconnect();
+          console.log('DEBUG: iOS/Safari audio context unlocked');
+        };
+        
+        // Remove the event listeners after first touch
+        document.removeEventListener('touchstart', unlockAudio, true);
+        document.removeEventListener('touchend', unlockAudio, true);
+        document.removeEventListener('click', unlockAudio, true);
+      };
+      
+      // Add event listeners to unlock audio
+      document.addEventListener('touchstart', unlockAudio, true);
+      document.addEventListener('touchend', unlockAudio, true);
+      document.addEventListener('click', unlockAudio, true);
+      
+      return () => {
+        document.removeEventListener('touchstart', unlockAudio, true);
+        document.removeEventListener('touchend', unlockAudio, true);
+        document.removeEventListener('click', unlockAudio, true);
+      };
+    }
+  }, []);
+
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-zinc-900 text-white">
-      {/* Settings Button - Positioned top-right */}
-      <button 
-        onClick={() => setIsSettingsOpen(true)}
-        className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-900 focus:ring-teal-500 rounded-full"
-        aria-label="Open Settings"
-      >
-        <SettingsIcon />
-      </button>
-
+      {/* Main content */}
       <main className="flex flex-col items-center">
         <button
           onClick={togglePlay}
@@ -67,6 +105,15 @@ export default function HomePage() {
           )}
         </button>
       </main>
+
+      {/* Drawer handle at bottom of screen */}
+      <button 
+        onClick={() => setIsSettingsOpen(true)}
+        className="fixed bottom-0 left-0 right-0 mx-auto w-20 h-8 flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded-t-lg focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-200 transform hover:translate-y-1"
+        aria-label="Open Settings"
+      >
+        <DrawerHandleIcon />
+      </button>
 
       {/* Settings Drawer - Conditionally rendered */}
       <SettingsDrawer 

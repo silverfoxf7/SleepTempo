@@ -6,6 +6,7 @@ import { useSettings } from '@/lib/useSettings';
 import { AVAILABLE_SOUNDS, SoundKey } from '@/context/SettingsContext';
 import type { TempoStep } from '@/lib/audioEngine';
 import { MIN_BPM, MAX_BPM, MIN_BEATS, MAX_BEATS } from '@/lib/constants';
+import { getAudioEngine } from '@/lib/audioEngine';
 
 interface SettingsDrawerProps {
   isOpen: boolean;
@@ -38,11 +39,30 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
     setVoiceCountEnabled(event.target.checked);
   };
 
+  // New function to test voice count
+  const handleTestVoiceCount = async () => {
+    try {
+      const engine = await getAudioEngine();
+      console.log("Testing voice count playback");
+      engine.testVoiceCount();
+    } catch (error) {
+      console.error("Error testing voice count:", error);
+    }
+  };
+
   // --- Ladder Editing Handlers ---
   const handleStepChange = (index: number, field: keyof TempoStep, value: string) => {
     const numValue = parseInt(value, 10);
-    // Basic validation
-    if (isNaN(numValue)) return; // Ignore non-numeric input
+    
+    // Allow empty string temporarily during typing (don't immediately revert to min)
+    if (value === "" || isNaN(numValue)) {
+      const newLadder = [...editableLadder];
+      newLadder[index] = { ...newLadder[index], [field]: value === "" ? "" : newLadder[index][field] };
+      setEditableLadder(newLadder);
+      return;
+    }
+    
+    // Validate only when we have a number - use the constant limits
     let validatedValue = numValue;
     if (field === 'bpm') {
         validatedValue = Math.max(MIN_BPM, Math.min(MAX_BPM, numValue));
@@ -67,8 +87,19 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
   };
 
   const handleSaveChanges = () => {
-    // TODO: Potentially add more complex validation before saving
-    setLadder(editableLadder); 
+    // Validate all values before saving
+    const validatedLadder = editableLadder.map(step => {
+      // Convert any string values to numbers and validate
+      const bpm = typeof step.bpm === 'string' ? parseInt(step.bpm as string, 10) : step.bpm;
+      const beats = typeof step.beats === 'string' ? parseInt(step.beats as string, 10) : step.beats;
+
+      return {
+        bpm: isNaN(bpm) ? MIN_BPM : Math.max(MIN_BPM, Math.min(MAX_BPM, bpm)),
+        beats: isNaN(beats) ? MIN_BEATS : Math.max(MIN_BEATS, Math.min(MAX_BEATS, beats))
+      };
+    });
+
+    setLadder(validatedLadder); 
     onClose(); // Close drawer after saving
   };
 
@@ -81,24 +112,18 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
   return (
     <Dialog.Root open={isOpen} onOpenChange={onClose}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-overlayShow" />
+        <Dialog.Overlay className="fixed inset-0 bg-black/50 animate-overlayShow" />
         <Dialog.Content 
-          className="fixed bottom-0 left-0 right-0 max-h-[85vh] w-full rounded-t-lg bg-zinc-800 p-6 text-white shadow-lg focus:outline-none data-[state=open]:animate-contentShow data-[state=closed]:animate-contentHide overflow-y-auto flex flex-col"
+          className="fixed bottom-0 left-0 right-0 max-h-[85vh] w-full rounded-t-lg bg-zinc-800 p-6 text-white shadow-lg focus:outline-none animate-contentShow overflow-y-auto flex flex-col"
           onOpenAutoFocus={(e) => e.preventDefault()} // Prevent auto-focus on first element
         >
-          <div className="flex justify-between items-center mb-4">
+          {/* Drawer handle visual at the top of the drawer */}
+          <div className="absolute top-2 left-0 right-0 flex justify-center">
+            <div className="w-16 h-1 bg-zinc-600 rounded-full"></div>
+          </div>
+          
+          <div className="flex justify-center items-center mb-6 mt-4">
             <Dialog.Title className="text-lg font-medium">Settings</Dialog.Title>
-            <Dialog.Close asChild>
-              <button 
-                className="rounded-full p-1 text-zinc-400 hover:text-white hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                aria-label="Close"
-              >
-                {/* Close Icon SVG */}
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                  <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </Dialog.Close>
           </div>
           
           {/* --- Settings Controls Scrollable Area --- */}
@@ -116,13 +141,27 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
               </select>
             </div>
 
-            {/* Voice Count Toggle */}
-            <div className="flex items-center justify-between">
-              <label htmlFor="voice-toggle" className="text-sm font-medium">Voice Count (10, 20...)</label>
-              <input 
-                type="checkbox" id="voice-toggle" checked={settings.voiceCountEnabled} onChange={handleVoiceToggle}
-                className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-              />
+            {/* Voice Count Toggle with Test Button */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label htmlFor="voice-toggle" className="text-sm font-medium">Voice Count (10, 20...)</label>
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" id="voice-toggle" checked={settings.voiceCountEnabled} onChange={handleVoiceToggle}
+                    className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                  />
+                  <button
+                    onClick={handleTestVoiceCount}
+                    className="text-xs bg-zinc-600 hover:bg-zinc-500 px-2 py-1 rounded"
+                    title="Test if voice counting is working"
+                  >
+                    Test
+                  </button>
+                </div>
+              </div>
+              <div className="text-xs text-zinc-400 italic">
+                Plays voice counts at 10, 20, 30... beats
+              </div>
             </div>
 
             {/* Ladder Editor */}
@@ -174,20 +213,23 @@ export default function SettingsDrawer({ isOpen, onClose }: SettingsDrawerProps)
 
           {/* --- Action Buttons --- */}
           <div className="mt-6 flex justify-end space-x-3 border-t border-zinc-700 pt-4">
-            <Dialog.Close asChild>
-              <button 
-                onClick={handleDiscardChanges}
-                className="px-4 py-2 text-sm rounded bg-zinc-600 hover:bg-zinc-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-800 focus:ring-zinc-400"
-              >
-                  Discard
-              </button>
-            </Dialog.Close>
+            <button 
+              onClick={handleDiscardChanges}
+              className="px-4 py-2 text-sm rounded bg-zinc-600 hover:bg-zinc-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-800 focus:ring-zinc-400"
+            >
+              Discard
+            </button>
             <button 
               onClick={handleSaveChanges}
               className="px-4 py-2 text-sm rounded bg-teal-600 hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-800 focus:ring-teal-400"
             >
               Save Changes
             </button>
+          </div>
+
+          {/* Bottom handle - visible when drawer is collapsed */}
+          <div className="fixed bottom-0 left-0 right-0 h-2 bg-zinc-800 flex justify-center items-center">
+            <div className="w-16 h-1 bg-zinc-600 rounded-full"></div>
           </div>
         </Dialog.Content>
       </Dialog.Portal>
