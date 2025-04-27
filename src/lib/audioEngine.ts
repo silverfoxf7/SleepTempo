@@ -1,215 +1,381 @@
 import { TNativeAudioContext } from 'standardized-audio-context';
+// Import settings types from context
+import type { SoundKey } from '@/context/SettingsContext'; 
 
 export interface TempoStep {
   bpm: number;
   beats: number;
 }
 
-class AudioEngineImpl {
+// Mapping from SoundKey to actual file paths (or null for default)
+const SOUND_FILE_PATHS: Record<SoundKey, string | null> = {
+    DEFAULT: null, // Indicates synthesized
+    AIRPOD: '/sounds/airpod-case-close.ogg',
+    SNAP: '/sounds/finger-snap.ogg',
+    HEARTBEAT: '/sounds/heart-beat.ogg',
+    TONGUE: '/sounds/tongue-click.ogg',
+};
+
+export class AudioEngineImpl {
   private static instance: AudioEngineImpl | null = null;
+  private static initializing: Promise<void> | null = null;
   private audioContext: TNativeAudioContext | null = null;
   private _isPlaying: boolean = false;
-  private clickBuffer: AudioBuffer | null = null;
+  
+  // Store all possible click buffers
+  private clickBuffers: Map<SoundKey, AudioBuffer> = new Map();
+  private activeClickBuffer: AudioBuffer | null = null;
+  private currentSoundSetting: SoundKey = 'DEFAULT'; // Default sound
+
   private schedulerTimer: ReturnType<typeof setTimeout> | null = null;
-  private nextClickTime: number = 0; // Absolute time based on audioContext.currentTime
+  private nextClickTime: number = 0;
   private currentSequence: TempoStep[] = [];
   private currentStepIndex: number = 0;
   private beatsInCurrentStep: number = 0;
   private scheduledSources: AudioBufferSourceNode[] = [];
-  private scheduleAheadTime: number = 0.1; // 100ms look-ahead
-  private scheduleIntervalMs: number = 25; // Check every 25ms
+  private scheduleAheadTime: number = 0.1;
+  private scheduleIntervalMs: number = 25;
+  private voiceCountBuffer: AudioBuffer | null = null;
+  private voiceCountOffsets: { [key: string]: { start: number; duration: number } } | null = null;
+  private voiceCountsEnabled: boolean = true; // Default, will be updated by settings
+  private segmentStartBeatCount: number = 0;
+  private segmentBeatCount: number = 0;
 
   public onEnded?: () => void;
 
-  private constructor() {
-    // Private constructor for singleton
+  private constructor() {}
+
+  private async initialize(): Promise<void> {
     if (typeof window !== 'undefined') {
       try {
-        // Use the constructor directly if available, otherwise check types
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const ContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (!ContextClass) {
-            console.error("Web Audio API is not supported in this browser.");
-            return;
-        }
-        // Cast to TNativeAudioContext for type safety with standardized-audio-context types
+        if (!ContextClass) throw new Error("Web Audio API not supported.");
         this.audioContext = new ContextClass() as TNativeAudioContext;
-        this.createClickBuffer();
+        
+        // Load ALL potential click sounds and the voice counts concurrently
+        await Promise.all([
+            this.loadAllClickBuffers(), 
+            this.loadVoiceCounts()
+        ]);
+
+        // Set the initial active buffer based on the default setting
+        this.setActiveClickBuffer(this.currentSoundSetting);
+
+        console.log("AudioEngine initialized with all buffers.");
+
       } catch (error) {
-          console.error("Error initializing AudioContext:", error);
+        console.error("Error initializing AudioContext or buffers:", error);
+        this.audioContext = null;
+        this.clickBuffers.clear();
       }
     }
   }
 
-  public static getInstance(): AudioEngineImpl {
-    if (!AudioEngineImpl.instance) {
-      AudioEngineImpl.instance = new AudioEngineImpl();
+  // Method to load all potential click sounds
+  private async loadAllClickBuffers(): Promise<void> {
+    if (!this.audioContext) throw new Error("AudioContext not available for loading buffers.");
+
+    const loadPromises: Promise<void>[] = [];
+
+    for (const key in SOUND_FILE_PATHS) {
+        const soundKey = key as SoundKey;
+        const path = SOUND_FILE_PATHS[soundKey];
+
+        if (path === null) { // Synthesize default sound
+            const promise = this.createSynthesizedClickBuffer().then(buffer => {
+                if (buffer) {
+                    this.clickBuffers.set(soundKey, buffer);
+                    console.log(`Synthesized click buffer created for ${soundKey}.`);
+                }
+            });
+            loadPromises.push(promise);
+        } else { // Load sound from file
+            const promise = fetch(path)
+                .then(response => {
+                    if (!response.ok) throw new Error(`Failed to fetch ${path}: ${response.statusText}`);
+                    return response.arrayBuffer();
+                })
+                .then(arrayBuffer => this.audioContext!.decodeAudioData(arrayBuffer))
+                .then(decodedBuffer => {
+                    this.clickBuffers.set(soundKey, decodedBuffer);
+                    console.log(`Loaded click buffer for ${soundKey} from ${path}.`);
+                })
+                .catch(error => {
+                    console.error(`Error loading click buffer for ${soundKey} from ${path}:`, error);
+                    // Optionally handle fallback? For now, just log error.
+                });
+            loadPromises.push(promise);
+        }
     }
-    return AudioEngineImpl.instance;
+    
+    await Promise.all(loadPromises);
+    console.log("Finished loading all click buffers.");
+  }
+
+  // Renamed from createClickBuffer
+  private async createSynthesizedClickBuffer(): Promise<AudioBuffer | null> {
+      if (!this.audioContext) return null;
+      try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const OfflineCtx = window.OfflineAudioContext || (window as any).webkitOfflineAudioContext;
+          if (!OfflineCtx) {
+              console.error("OfflineAudioContext not supported for synthesis. Falling back to square wave.");
+              return this.createSquareWaveBuffer(); 
+          }
+          const sampleRate = this.audioContext.sampleRate;
+          const durationSeconds = 0.06;
+          const frameCount = sampleRate * durationSeconds;
+          const offlineContext = new OfflineCtx(1, frameCount, sampleRate) as OfflineAudioContext;
+          const tone = offlineContext.createOscillator();
+          tone.type = 'triangle';
+          tone.frequency.value = 1000;
+          const gain = offlineContext.createGain();
+          gain.gain.setValueAtTime(1, 0);
+          gain.gain.exponentialRampToValueAtTime(0.0001, offlineContext.currentTime + 0.05);
+          const hp = offlineContext.createBiquadFilter();
+          hp.type = 'highpass';
+          hp.frequency.value = 700;
+          tone.connect(gain).connect(hp).connect(offlineContext.destination);
+          tone.start(0);
+          tone.stop(offlineContext.currentTime + durationSeconds);
+          const renderedBuffer = await offlineContext.startRendering();
+          return renderedBuffer;
+      } catch (error) {
+          console.error("Error creating synthesized click buffer:", error);
+          return this.createSquareWaveBuffer(); 
+      }
+  }
+  
+  // Updated setActiveClickBuffer - select from loaded buffers
+  private setActiveClickBuffer(sound: SoundKey): boolean {
+      const buffer = this.clickBuffers.get(sound);
+      if (buffer) {
+          this.activeClickBuffer = buffer;
+          this.currentSoundSetting = sound;
+          console.log(`AudioEngine: Active click sound set to ${sound}`);
+          return true;
+      }
+      console.warn(`AudioEngine: Buffer for sound ${sound} not found. Keeping previous sound.`);
+      return false;
+  }
+
+  // Public method to update settings (called by useSettings potentially)
+  public updateSettings(settingsUpdate: { sound?: SoundKey; voiceCountEnabled?: boolean }): void {
+      console.log(`DEBUG: updateSettings called with:`, settingsUpdate, `Current sound: ${this.currentSoundSetting}`);
+      if (settingsUpdate.sound !== undefined && settingsUpdate.sound !== this.currentSoundSetting) {
+          console.log(`DEBUG: Sound setting changed. Calling setActiveClickBuffer with ${settingsUpdate.sound}`);
+          this.setActiveClickBuffer(settingsUpdate.sound);
+      }
+      if (settingsUpdate.voiceCountEnabled !== undefined) {
+          if (settingsUpdate.voiceCountEnabled !== this.voiceCountsEnabled) {
+              this.voiceCountsEnabled = settingsUpdate.voiceCountEnabled;
+              console.log(`AudioEngine: Voice counts ${this.voiceCountsEnabled ? 'enabled' : 'disabled'}`);
+          }
+      }
+  }
+
+  // --- Rest of the methods (getInstance, isPlaying, start, scheduler, scheduleClick, etc.) ---
+  // Minor change: scheduleClick uses this.activeClickBuffer
+  public static getInstance(): Promise<AudioEngineImpl> {
+      // ... (getInstance logic remains the same) ...
+    return new Promise(async (resolve) => {
+        if (AudioEngineImpl.instance) {
+            resolve(AudioEngineImpl.instance);
+            return;
+        }
+        if (!AudioEngineImpl.initializing) {
+            const newInstance = new AudioEngineImpl();
+            AudioEngineImpl.initializing = newInstance.initialize().then(() => {
+                AudioEngineImpl.instance = newInstance;
+                AudioEngineImpl.initializing = null;
+            }).catch(err => {
+                console.error("AudioEngine initialization failed:", err);
+                AudioEngineImpl.initializing = null;
+            });
+        }
+        await AudioEngineImpl.initializing;
+        if (AudioEngineImpl.instance) {
+             resolve(AudioEngineImpl.instance);
+        } else {
+             resolve(AudioEngineImpl.instance!); // Or handle error appropriately
+        }
+    });
   }
 
   public get isPlaying(): boolean {
     return this._isPlaying;
   }
 
-  public start(sequence: TempoStep[]): void {
-    if (!this.audioContext || !this.clickBuffer) {
-      console.error("Audio engine not initialized or click buffer missing.");
+  public start(sequence: TempoStep[], initialOverallBeatCount: number = 0): void {
+    // Use activeClickBuffer here
+    if (!this.audioContext || !this.activeClickBuffer) {
+      console.error("Audio engine not initialized or active click buffer missing.");
       return;
     }
     if (this._isPlaying) {
       console.warn("AudioEngine already playing. Call stop() first.");
       return;
     }
-    if (sequence.length === 0) {
-        console.warn("Cannot start with an empty sequence.");
+    if (sequence.length !== 1) {
+        console.error(`AudioEngine.start called with sequence length ${sequence.length}. Expected 1.`);
         return;
     }
-
-    // Resume AudioContext if suspended (important for mobile browsers)
     if (this.audioContext.state === 'suspended') {
         this.audioContext.resume();
     }
-
-    console.log("Starting sequence:", sequence);
+    console.log(`AudioEngine: Starting step: ${JSON.stringify(sequence[0])} at overall beat ${initialOverallBeatCount}`);
     this._isPlaying = true;
     this.currentSequence = sequence;
     this.currentStepIndex = 0;
     this.beatsInCurrentStep = 0;
-    this.nextClickTime = this.audioContext.currentTime + 0.05; // Start scheduling shortly after start call
+    this.segmentStartBeatCount = initialOverallBeatCount;
+    this.segmentBeatCount = 0;
+    this.nextClickTime = this.audioContext.currentTime + 0.05;
     this.scheduledSources = [];
-
-    // Clear any previous timer
     if (this.schedulerTimer) {
         clearTimeout(this.schedulerTimer);
     }
-
-    this.scheduler(); // Start the scheduling loop
+    this.scheduler();
   }
 
   private scheduler(): void {
     if (!this._isPlaying || !this.audioContext) return;
 
-    // Schedule clicks until scheduleAheadTime reached
     while (this.nextClickTime < this.audioContext.currentTime + this.scheduleAheadTime) {
         this.scheduleClick(this.nextClickTime);
         this.advanceBeat();
 
-        // Check if sequence finished
-        if (this.currentStepIndex >= this.currentSequence.length) {
-            // Schedule the final onEnded call slightly after the last beat
-            const finalBeatDuration = 60.0 / this.currentSequence[this.currentSequence.length - 1].bpm;
-            const onEndedTime = this.nextClickTime + finalBeatDuration; // Time for onEnded callback
-            
-            // Use setTimeout for the callback, relative to audio context time
+        const currentStep = this.currentSequence[this.currentStepIndex];
+        if (!currentStep || this.segmentBeatCount >= currentStep.beats) {
+            const finalBeatDuration = 60.0 / currentStep.bpm;
+            const onEndedTime = this.nextClickTime + finalBeatDuration;
             const delayMs = (onEndedTime - this.audioContext.currentTime) * 1000;
             
             setTimeout(() => {
-                 // Check if still playing, could have been stopped manually
                 if(this._isPlaying) {
-                    console.log("Sequence finished naturally.")
-                    this.stop(false); // Stop without calling onEnded here
+                    console.log("AudioEngine: Segment finished naturally.")
+                    this.stop(false);
                     if (this.onEnded) {
-                        this.onEnded(); // Call the actual callback
+                        this.onEnded();
                     }
                 }
-            }, Math.max(0, delayMs)); // Ensure delay isn't negative
+            }, Math.max(0, delayMs));
             
-            return; // Stop scheduling loop
+            return;
         }
     }
 
-    // Setup next scheduler call
     this.schedulerTimer = setTimeout(() => this.scheduler(), this.scheduleIntervalMs);
   }
 
   private scheduleClick(time: number): void {
-    if (!this.audioContext || !this.clickBuffer) return;
+    // Use activeClickBuffer here
+    if (!this.audioContext || !this.activeClickBuffer) return;
 
-    const source = this.audioContext.createBufferSource();
-    source.buffer = this.clickBuffer;
-    source.connect(this.audioContext.destination);
-    source.start(time);
+    const clickSource = this.audioContext.createBufferSource();
+    clickSource.buffer = this.activeClickBuffer; // Use the currently active buffer
+    clickSource.connect(this.audioContext.destination);
+    clickSource.start(time);
     
-    // Keep track of sources to stop them later if needed
-    this.scheduledSources.push(source);
-
-    // Clean up finished sources (optional but good practice)
-    source.onended = () => {
-        this.scheduledSources = this.scheduledSources.filter(s => s !== source);
+    this.scheduledSources.push(clickSource);
+    clickSource.onended = () => {
+        this.scheduledSources = this.scheduledSources.filter(s => s !== clickSource);
     };
+
+    const overallBeatNumber = this.segmentStartBeatCount + this.segmentBeatCount + 1;
+    
+    if (this.voiceCountsEnabled && 
+        this.voiceCountBuffer && 
+        this.voiceCountOffsets && 
+        overallBeatNumber % 10 === 0) {
+        
+        console.log(`AudioEngine: Scheduling voice count: ${overallBeatNumber}`);
+        const voiceSource = this.audioContext.createBufferSource();
+        voiceSource.buffer = this.voiceCountBuffer;
+        voiceSource.connect(this.audioContext.destination);
+        voiceSource.start(time, this.voiceCountOffsets[overallBeatNumber.toString()].start, this.voiceCountOffsets[overallBeatNumber.toString()].duration);
+    }
+    else if (overallBeatNumber <= 100) {
+        console.warn(`AudioEngine: Missing voice offset for beat ${overallBeatNumber}`);
+    }
   }
 
   private advanceBeat(): void {
     const currentStep = this.currentSequence[this.currentStepIndex];
+    if (!currentStep) return;
+
     const secondsPerBeat = 60.0 / currentStep.bpm;
     this.nextClickTime += secondsPerBeat;
-
-    this.beatsInCurrentStep++;
-    if (this.beatsInCurrentStep >= currentStep.beats) {
-        this.currentStepIndex++;
-        this.beatsInCurrentStep = 0;
-        // If moving to a new step, log it (optional)
-        if (this.currentStepIndex < this.currentSequence.length) {
-            console.log(`Moving to step ${this.currentStepIndex + 1}: ${this.currentSequence[this.currentStepIndex].bpm} BPM`);
-        }
-    }
+    this.segmentBeatCount++;
   }
 
-  public stop(callOnEnded: boolean = false): void { // Add parameter to control onEnded
+  public stop(callOnEnded: boolean = false): void {
     if (!this.audioContext) return;
-    if (!this._isPlaying) return; // Already stopped
+    if (!this._isPlaying) return;
 
-    console.log("Stopping sequence.");
+    console.log("AudioEngine: Stopping.");
     this._isPlaying = false;
 
-    // Clear the scheduler timeout
     if (this.schedulerTimer) {
       clearTimeout(this.schedulerTimer);
       this.schedulerTimer = null;
     }
 
-    // Stop all scheduled sources that haven't played yet
     const currentTime = this.audioContext.currentTime;
     this.scheduledSources.forEach(source => {
-        // Attempt to stop. This might throw if the source already finished, ignore errors.
         try {
              source.stop(currentTime);
-        } catch {
-           // ignore error, source might have finished already
-        }
+        } catch { /* ignore */ }
     });
-    this.scheduledSources = []; // Clear the array
+    this.scheduledSources = [];
 
-    // Reset sequence progress
     this.currentSequence = [];
     this.currentStepIndex = 0;
     this.beatsInCurrentStep = 0;
+    this.segmentBeatCount = 0;
 
-    // Call onEnded ONLY if explicitly requested (e.g., manual stop)
-    // Natural completion handles its own onEnded call in the scheduler.
     if (callOnEnded && this.onEnded) {
-      console.log("onEnded called due to manual stop.");
+      console.log("AudioEngine: onEnded called due to manual stop.");
       this.onEnded();
     }
   }
 
-  // --- Internal methods for scheduling and buffer creation will go here --- 
-  private createClickBuffer(): void {
-    if (!this.audioContext) return;
-    const sampleRate = this.audioContext.sampleRate;
-    const durationSeconds = 0.005; // 5ms click
-    const frameCount = sampleRate * durationSeconds;
-    this.clickBuffer = this.audioContext.createBuffer(1, frameCount, sampleRate);
-    const bufferData = this.clickBuffer.getChannelData(0);
-    // Simple square wave (or noise burst)
-    for (let i = 0; i < frameCount; i++) {
-        // bufferData[i] = Math.random() * 2 - 1; // White noise
-        bufferData[i] = i < frameCount / 2 ? 1.0 : -1.0; // Square wave
-    }
-    console.log("Click buffer created.");
+  private createSquareWaveBuffer(): AudioBuffer | null {
+      if (!this.audioContext) return null;
+      const sampleRate = this.audioContext.sampleRate;
+      const durationSeconds = 0.005;
+      const frameCount = sampleRate * durationSeconds;
+      const buffer = this.audioContext.createBuffer(1, frameCount, sampleRate);
+      const bufferData = buffer.getChannelData(0);
+      for (let i = 0; i < frameCount; i++) {
+          bufferData[i] = i < frameCount / 2 ? 0.8 : -0.8;
+      }
+      return buffer;
+  }
+  
+  private async loadVoiceCounts(): Promise<void> {
+      if (!this.audioContext) return;
+      const audioPath = '/sounds/voice_counts.ogg';
+      const jsonPath = '/sounds/voice_counts.json';
+      try {
+          const audioResponse = await fetch(audioPath);
+          if (!audioResponse.ok) throw new Error(`Failed to fetch audio: ${audioResponse.statusText}`);
+          const audioArrayBuffer = await audioResponse.arrayBuffer();
+          this.voiceCountBuffer = await this.audioContext.decodeAudioData(audioArrayBuffer);
+          console.log("Voice count audio loaded.");
+          const jsonResponse = await fetch(jsonPath);
+          if (!jsonResponse.ok) throw new Error(`Failed to fetch JSON: ${jsonResponse.statusText}`);
+          this.voiceCountOffsets = await jsonResponse.json();
+          console.log("Voice count offsets loaded:", this.voiceCountOffsets);
+      } catch (error) {
+          console.warn("Could not load voice count assets:", error);
+          this.voiceCountsEnabled = false;
+          this.voiceCountBuffer = null;
+          this.voiceCountOffsets = null;
+      }
   }
 }
 
-// Export the singleton instance
+export const getAudioEngine = (): Promise<AudioEngineImpl> => AudioEngineImpl.getInstance();
 export const audioEngine = AudioEngineImpl.getInstance(); 

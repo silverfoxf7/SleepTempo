@@ -52,18 +52,19 @@ Use the check-boxes below; mark `[x]` as you finish each task.
 
 ---
 
-## ⚙️ 5 — Settings Drawer (Optional)  
-- [ ] Slide-up sheet (Radix UI or Headless UI).  
-- [ ] Toggles: **voice count**, **haptic vibration** (uses `navigator.vibrate`, automatically no-ops on unsupported devices).  
-- [ ] Editable ladder (input BPM & beats).  
-- [ ] Persist to `localStorage`.  
+## 🗣️ 5 — Alternative Sounds
+- [x] Record/synthesize "ten, twenty, thirty ..."; export Ogg (16 kHz, mono, ≤25 kB). The system should play "ten" on the tenth beat, "twenty" on the twentieth beat, and so on. **(Assets Provided & Loaded)**
+- [x] Audio sprite technique: single file, offsets in JSON. **(Implemented)**
+- [x] Schedule voice on every tenth beat when enabled. **(Implemented, enabled by default)**
+- [x] Use a sound that's different than what we currently have (square-wave or white-noise burst). Reference and implement the options at memory-bank/soundPref.md. **(Implemented Synthesized Soft Click)**
 
 ---
 
-## 🗣️ 6 — Soft Voice Count (Optional)  
-- [ ] Record/synthesize "one…four"; export Ogg (16 kHz, mono, ≤25 kB).  
-- [ ] Audio sprite technique: single file, offsets in JSON.  
-- [ ] Schedule voice on every fourth beat when enabled.  
+## ⚙️ 6 — Settings Drawer (Optional)  
+- [x] Slide-up sheet (Radix UI or Headless UI). **(Implemented with Radix Dialog)**
+- [x] Toggles: **voice count**. **(Implemented)**
+- [x] Editable ladder (input BPM & beats). **(Implemented)**
+- [x] Persist to `localStorage`. **(Implemented via useSettings context)**
 
 ---
 

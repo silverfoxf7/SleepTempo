@@ -1,0 +1,12 @@
+{
+  "10": { "start": 0.051, "duration": 0.491 },
+  "20": { "start": 0.542, "duration": 0.639 },
+  "30": { "start": 1.181, "duration": 0.656 },
+  "40": { "start": 1.837, "duration": 0.662 },
+  "50": { "start": 2.499, "duration": 0.650 },
+  "60": { "start": 3.149, "duration": 0.730 },
+  "70": { "start": 3.880, "duration": 0.740 },
+  "80": { "start": 4.620, "duration": 0.578 },
+  "90": { "start": 5.198, "duration": 0.650 },
+  "100": { "start": 5.848, "duration": 0.743 }
+} 

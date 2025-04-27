@@ -4,9 +4,10 @@ import { TempoStep } from './audioEngine';
 // PRD: Specify stages (e.g., 120 for 2min, 100 for 2min, ... 20 for 10min)
 // For now, using a simpler placeholder structure.
 
-// Example: 120 BPM for 8 beats, 100 for 8, ..., 20 for 16
+// Example: 120 BPM for 100 beats, then ramp down
 export const DEFAULT_TEMPO_LADDER: TempoStep[] = [
-  { bpm: 120, beats: 8 },
+  { bpm: 120, beats: 100 }, // Initial phase: 100 beats at 120 BPM
+  // Ramp down phase (optional, kept from previous version)
   { bpm: 100, beats: 8 },
   { bpm: 80, beats: 8 },
   { bpm: 60, beats: 8 },

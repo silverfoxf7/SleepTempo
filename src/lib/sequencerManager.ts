@@ -1,35 +1,51 @@
-import { audioEngine, TempoStep } from './audioEngine';
+import { TempoStep } from './audioEngine';
 import { DEFAULT_TEMPO_LADDER } from './constants';
+import type { AudioEngineImpl } from './audioEngine';
 
 export class SequencerManager {
   private ladder: TempoStep[];
   private currentStepIndex: number;
   private isRunning: boolean;
+  private engine: AudioEngineImpl;
+  private overallBeatCount: number = 0; // Track beats across the whole sequence
 
   public onSequenceEnd?: () => void;
 
-  constructor(initialLadder: TempoStep[] = DEFAULT_TEMPO_LADDER) {
+  constructor(engine: AudioEngineImpl, initialLadder: TempoStep[] = DEFAULT_TEMPO_LADDER) {
+    if (!engine) {
+        throw new Error("SequencerManager requires a valid AudioEngine instance.");
+    }
+    this.engine = engine;
     this.ladder = initialLadder;
-    this.currentStepIndex = -1; // Not started
+    this.currentStepIndex = -1;
     this.isRunning = false;
   }
 
   private handleAudioEngineEnd = () => {
     if (!this.isRunning) {
-      return; // Sequence was stopped externally
+      return;
+    }
+    
+    // Increment overall beat count by the number of beats in the step that JUST finished
+    const completedStep = this.ladder[this.currentStepIndex];
+    if (completedStep) {
+        this.overallBeatCount += completedStep.beats;
+        console.log(`SequencerManager: Step ${this.currentStepIndex + 1} ended. Overall beats: ${this.overallBeatCount}`);
     }
 
+    // Now move to the next step index
     this.currentStepIndex++;
 
     if (this.currentStepIndex < this.ladder.length) {
       this.startCurrentStep();
     } else {
-      // End of sequence
+      console.log("SequencerManager: Full sequence finished.");
       this.isRunning = false;
       this.currentStepIndex = -1;
-      audioEngine.onEnded = undefined; // Clean up listener
+      this.overallBeatCount = 0; // Reset for next full sequence run
+      this.engine.onEnded = undefined; // Stop listening to engine's step end
       if (this.onSequenceEnd) {
-        this.onSequenceEnd();
+        this.onSequenceEnd(); // Notify UI hook
       }
     }
   };
@@ -37,12 +53,12 @@ export class SequencerManager {
   private startCurrentStep() {
     const step = this.ladder[this.currentStepIndex];
     if (step) {
-      // Pass only the current step as a single-element array
-      audioEngine.start([step]);
+      console.log(`SequencerManager: Starting step ${this.currentStepIndex + 1}/${this.ladder.length}, overall beat count starts at ${this.overallBeatCount}`);
+      // Pass the current overall beat count to the engine
+      this.engine.start([step], this.overallBeatCount);
     } else {
-      // Should not happen if logic is correct, but handle defensively
-      console.error('SequencerManager: Invalid step index', this.currentStepIndex);
-      this.stop();
+      console.error('SequencerManager: Invalid step index encountered in startCurrentStep', this.currentStepIndex);
+      this.stop(); // Stop if something went wrong
     }
   }
 
@@ -52,7 +68,7 @@ export class SequencerManager {
       return;
     }
 
-    this.ladder = ladder; // Use provided ladder or the constructor default
+    this.ladder = ladder;
     if (this.ladder.length === 0) {
       console.warn('SequencerManager: Cannot start with an empty ladder.');
       return;
@@ -61,8 +77,8 @@ export class SequencerManager {
     console.log('SequencerManager: Starting sequence...');
     this.isRunning = true;
     this.currentStepIndex = 0;
-    // Assign the bound method as the handler
-    audioEngine.onEnded = this.handleAudioEngineEnd;
+    this.overallBeatCount = 0; // Reset overall count at the beginning of the sequence
+    this.engine.onEnded = this.handleAudioEngineEnd; // Listen for engine step ends
     this.startCurrentStep();
   }
 
@@ -70,10 +86,12 @@ export class SequencerManager {
     if (!this.isRunning) {
       return;
     }
-    console.log('SequencerManager: Stopping sequence...');
+    console.log('SequencerManager: Stopping sequence manually...');
     this.isRunning = false;
+    this.engine.stop(); // Tell engine to stop its current step
+    // Clean up immediately on manual stop
+    this.engine.onEnded = undefined;
     this.currentStepIndex = -1;
-    audioEngine.stop();
-    audioEngine.onEnded = undefined; // Clean up listener immediately
+    this.overallBeatCount = 0;
   }
 } 

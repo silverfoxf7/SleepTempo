@@ -24,3 +24,49 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Radix Dialog Animations */
+@layer utilities {
+  @keyframes overlayShow {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes contentShow {
+    from { opacity: 0; transform: translate(-50%, 100%) scale(0.96); }
+    to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  }
+
+  @keyframes contentHide {
+    from { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    to { opacity: 0; transform: translate(-50%, 100%) scale(0.96); }
+  }
+
+  .animate-overlayShow {
+    animation: overlayShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-contentShow {
+      /* Position fix for bottom sheet */
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%); 
+      width: 100%; /* Or max-width */
+      /* Animation */
+      animation: contentShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .animate-contentHide {
+      /* Position fix for bottom sheet */
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%; /* Or max-width */
+      /* Animation */
+      animation: contentHide 150ms cubic-bezier(0.16, 1, 0.3, 1);
+      /* Keep element positioned until animation ends */
+      animation-fill-mode: forwards; 
+  }
+}
