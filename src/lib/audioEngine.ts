@@ -1,6 +1,10 @@
 import { TNativeAudioContext } from 'standardized-audio-context';
 // Import settings types from context
 import type { SoundKey } from '@/context/SettingsContext'; 
+// Import new click builders
+import { buildRimshot } from './clicks/buildRimshot';
+import { buildWoodblock } from './clicks/buildWoodblock';
+import { buildKalimba } from './clicks/buildKalimba';
 
 export interface TempoStep {
   bpm: number;
@@ -9,7 +13,10 @@ export interface TempoStep {
 
 // Mapping from SoundKey to actual file paths (or null for default)
 const SOUND_FILE_PATHS: Record<SoundKey, string | null> = {
-    DEFAULT: null, // Indicates synthesized
+    DEFAULT: null, // Triangle synth
+    RIMSHOT: null, // Rimshot synth
+    WOODBLOCK: null, // Woodblock synth
+    KALIMBA: null, // Kalimba synth
     AIRPOD: '/sounds/airpod-case-close.ogg',
     SNAP: '/sounds/finger-snap.ogg',
     HEARTBEAT: '/sounds/heart-beat.ogg',
@@ -77,19 +84,43 @@ export class AudioEngineImpl {
     if (!this.audioContext) throw new Error("AudioContext not available for loading buffers.");
 
     const loadPromises: Promise<void>[] = [];
+    const sampleRate = this.audioContext.sampleRate;
 
     for (const key in SOUND_FILE_PATHS) {
         const soundKey = key as SoundKey;
         const path = SOUND_FILE_PATHS[soundKey];
 
-        if (path === null) { // Synthesize default sound
-            const promise = this.createSynthesizedClickBuffer().then(buffer => {
+        if (path === null) { // Synthesize sound
+            let buildPromise: Promise<AudioBuffer | null>;
+            // Choose the correct synthesis function based on the key
+            switch (soundKey) {
+                case 'RIMSHOT':
+                    buildPromise = buildRimshot(sampleRate);
+                    break;
+                case 'WOODBLOCK':
+                    buildPromise = buildWoodblock(sampleRate);
+                    break;
+                case 'KALIMBA':
+                    buildPromise = buildKalimba(1046, sampleRate); // Default pitch C6
+                    break;
+                case 'DEFAULT': // Fallthrough intended for default triangle
+                default:
+                    buildPromise = this.createSynthesizedClickBuffer(); // Original triangle synth
+                    break;
+            }
+            
+            const promise = buildPromise.then(buffer => {
                 if (buffer) {
                     this.clickBuffers.set(soundKey, buffer);
                     console.log(`Synthesized click buffer created for ${soundKey}.`);
+                } else {
+                     console.error(`Failed to synthesize buffer for ${soundKey}.`);
                 }
+            }).catch(error => {
+                console.error(`Error synthesizing buffer for ${soundKey}:`, error);
             });
             loadPromises.push(promise);
+
         } else { // Load sound from file
             const promise = fetch(path)
                 .then(response => {
@@ -103,7 +134,6 @@ export class AudioEngineImpl {
                 })
                 .catch(error => {
                     console.error(`Error loading click buffer for ${soundKey} from ${path}:`, error);
-                    // Optionally handle fallback? For now, just log error.
                 });
             loadPromises.push(promise);
         }

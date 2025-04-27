@@ -6,7 +6,10 @@ import type { TempoStep } from '@/lib/audioEngine';
 
 // --- Types and Constants (copied from useSettings) ---
 export const AVAILABLE_SOUNDS = {
-  DEFAULT: 'Default (Synthesized)',
+  DEFAULT: 'Default (Triangle)',
+  RIMSHOT: 'Soft Rimshot',
+  WOODBLOCK: 'Muted Woodblock',
+  // KALIMBA: 'Kalimba Pluck',
   AIRPOD: 'Airpod Case Close',
   SNAP: 'Finger Snap',
   HEARTBEAT: 'Heart Beat',
