@@ -4,7 +4,6 @@ import type { SoundKey } from '@/context/SettingsContext';
 // Import new click builders
 import { buildRimshot } from './clicks/buildRimshot';
 import { buildWoodblock } from './clicks/buildWoodblock';
-import { buildKalimba } from './clicks/buildKalimba';
 
 export interface TempoStep {
   bpm: number;
@@ -21,6 +20,8 @@ const SOUND_FILE_PATHS: Record<SoundKey, string | null> = {
     SNAP: '/sounds/finger-snap.ogg',
     HEARTBEAT: '/sounds/heart-beat.ogg',
     TONGUE: '/sounds/tongue-click.ogg',
+    CAT_MEOW: '/sounds/catsMEOW.ogg',
+    CAT_CHEWING: '/sounds/catsChewing.ogg',
 };
 
 export class AudioEngineImpl {
@@ -100,12 +101,13 @@ export class AudioEngineImpl {
                 case 'WOODBLOCK':
                     buildPromise = buildWoodblock(sampleRate);
                     break;
-                case 'KALIMBA':
-                    buildPromise = buildKalimba(1046, sampleRate); // Default pitch C6
-                    break;
-                case 'DEFAULT': // Fallthrough intended for default triangle
+                // Removed KALIMBA case as it was commented out in SettingsContext
+                // case 'KALIMBA':
+                //     buildPromise = buildKalimba(1046, sampleRate); 
+                //     break;
+                case 'DEFAULT':
                 default:
-                    buildPromise = this.createSynthesizedClickBuffer(); // Original triangle synth
+                    buildPromise = this.createSynthesizedClickBuffer();
                     break;
             }
             

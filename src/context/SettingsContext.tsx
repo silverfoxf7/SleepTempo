@@ -9,11 +9,14 @@ export const AVAILABLE_SOUNDS = {
   DEFAULT: 'Default (Triangle)',
   RIMSHOT: 'Soft Rimshot',
   WOODBLOCK: 'Muted Woodblock',
-  KALIMBA: 'Kalimba Pluck',
+  // KALIMBA: 'Kalimba Pluck', // User commented out
+  // --- File-based sounds ---
   AIRPOD: 'Airpod Case Close',
   SNAP: 'Finger Snap',
   HEARTBEAT: 'Heart Beat',
   TONGUE: 'Tongue Click',
+  CAT_MEOW: "Cat's Meow",
+  CAT_CHEWING: "Cat's Chewing",
 } as const;
 
 export type SoundKey = keyof typeof AVAILABLE_SOUNDS;
