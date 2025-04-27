@@ -4,6 +4,7 @@ import type { SoundKey } from '@/context/SettingsContext';
 // Import new click builders
 import { buildRimshot } from './clicks/buildRimshot';
 import { buildWoodblock } from './clicks/buildWoodblock';
+import { buildKalimba } from './clicks/buildKalimba';
 
 export interface TempoStep {
   bpm: number;
@@ -101,13 +102,12 @@ export class AudioEngineImpl {
                 case 'WOODBLOCK':
                     buildPromise = buildWoodblock(sampleRate);
                     break;
-                // Removed KALIMBA case as it was commented out in SettingsContext
-                // case 'KALIMBA':
-                //     buildPromise = buildKalimba(1046, sampleRate); 
-                //     break;
-                case 'DEFAULT':
+                case 'KALIMBA':
+                    buildPromise = buildKalimba(1046, sampleRate); // Default pitch C6
+                    break;
+                case 'DEFAULT': // Fallthrough intended for default triangle
                 default:
-                    buildPromise = this.createSynthesizedClickBuffer();
+                    buildPromise = this.createSynthesizedClickBuffer(); 
                     break;
             }
             
