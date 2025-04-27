@@ -85,7 +85,7 @@ All still viable because a PWA **is** a web app:
 ---
 
 ## 🚀 9 — CI/CD  
-- [ ] GitHub Actions: `pnpm install && pnpm lint && pnpm test && pnpm build`. **(Vercel handles this)**
+- [x] GitHub Actions: `pnpm install && pnpm lint && pnpm test && pnpm build`. **(Vercel handles this)**
 - [x] Auto-preview to Vercel on every PR; production deploy on `main`. **(Setup done, first deploy triggered)**
 - [ ] Tag `v0.1.0-alpha`, draft release notes.  
 
