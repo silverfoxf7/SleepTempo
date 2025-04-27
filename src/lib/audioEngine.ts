@@ -4,7 +4,6 @@ import type { SoundKey } from '@/context/SettingsContext';
 // Import new click builders
 import { buildRimshot } from './clicks/buildRimshot';
 import { buildWoodblock } from './clicks/buildWoodblock';
-import { buildKalimba } from './clicks/buildKalimba';
 
 export interface TempoStep {
   bpm: number;
@@ -16,7 +15,6 @@ const SOUND_FILE_PATHS: Record<SoundKey, string | null> = {
     DEFAULT: null, // Triangle synth
     RIMSHOT: null, // Rimshot synth
     WOODBLOCK: null, // Woodblock synth
-    KALIMBA: null, // Kalimba synth
     AIRPOD: '/sounds/airpod-case-close.ogg',
     SNAP: '/sounds/finger-snap.ogg',
     HEARTBEAT: '/sounds/heart-beat.ogg',
@@ -101,9 +99,6 @@ export class AudioEngineImpl {
                     break;
                 case 'WOODBLOCK':
                     buildPromise = buildWoodblock(sampleRate);
-                    break;
-                case 'KALIMBA':
-                    buildPromise = buildKalimba(1046, sampleRate); // Default pitch C6
                     break;
                 case 'DEFAULT': // Fallthrough intended for default triangle
                 default:
